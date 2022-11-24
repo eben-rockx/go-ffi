@@ -1,0 +1,6 @@
+/rust/target
+/rust/Cargo.lock
+/rust/rockxcrypto.h
+.idea
+/librockxcrypto.a
+/rockxcrypto.h

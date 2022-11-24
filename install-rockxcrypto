@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2155 enable=require-variable-braces
+
+set -Exeo pipefail
+
+# set CWD to the root of rockxcrypto-ffi
+#
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+# tracks where the Rust sources are were we to build locally instead of
+# downloading from GitHub Releases
+#
+rust_sources_dir="rust"
+
+main() {
+    (>&2 echo "[install-rockxcrypto/main] building librockxcrypto from local sources (dir = ${rust_sources_dir})")
+
+    # build librockxcrypto (and corresponding header and pkg-config)
+    build_from_source "rockxcrypto" "${rust_sources_dir}" 
+
+    # copy from Rust's build directory (target) to root of rockxcrypto-ffi
+    #
+    find -L "${rust_sources_dir}/target/release" -type f -name librockxcrypto.a -exec cp -- "{}" . \;
+    find -L "${rust_sources_dir}" -type f -name rockxcrypto.h -exec cp -- "{}" . \;
+
+    pwd
+    ls ./*rockxcrypto*
+
+    check_installed_files
+    (>&2 echo "[install-rockxcrypto/main] successfully built and installed librockxcrypto from source")
+}
+
+build_from_source() {
+    local __library_name=$1
+    local __rust_sources_path=$2
+
+    if ! [ -x "$(command -v cargo)" ]; then
+        (>&2 echo '[build_from_source] Error: cargo is not installed.')
+        (>&2 echo '[build_from_source] install Rust toolchain to resolve this problem.')
+        exit 1
+    fi
+
+    if ! [ -x "$(command -v rustup)" ]; then
+        (>&2 echo '[build_from_source] Error: rustup is not installed.')
+        (>&2 echo '[build_from_source] install Rust toolchain installer to resolve this problem.')
+        exit 1
+    fi
+
+    pushd "${__rust_sources_path}"
+
+    cargo --version
+
+    additional_flags=""
+    # For building on Darwin, we try to use cargo-lipo instead of cargo build.
+    # Note that the cross compile works on x86_64 for m1, but doesn't work on m1.
+    # For m1, we will build natively if building from source.
+    if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -s)" = "x86_64" ]; then
+        #build="lipo"
+        #additional_flags="--targets x86_64-apple-darwin,aarch64-apple-darwin "
+        build="build"
+    else
+        build="build"
+    fi
+
+    ./scripts/build-release.sh "${__library_name}" ${build}
+
+    popd
+}
+
+
+
+check_installed_files() {
+    pwd
+    ls ./*rockxcrypto*
+
+    if [[ ! -f "./rockxcrypto.h" ]]; then
+        (>&2 echo "[check_installed_files] failed to install rockxcrypto.h")
+        exit 1
+    fi
+
+    if [[ ! -f "./librockxcrypto.a" ]]; then
+        (>&2 echo "[check_installed_files] failed to install librockxcrypto.a")
+        exit 1
+    fi
+}
+
+main "$@"; exit
